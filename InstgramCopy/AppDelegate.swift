@@ -7,16 +7,79 @@
 //
 
 import UIKit
+import Firebase
+import UserNotifications
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate,MessagingDelegate,UNUserNotificationCenterDelegate{
 
     var window: UIWindow?
 
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        FirebaseApp.configure()
+        window = UIWindow()
+        window?.makeKeyAndVisible()
+        window?.rootViewController = MainTabController()
+        attemptRegisterNotification(App: application)
         return true
+    }
+    //Physical Phone's Token.
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        print("device token",deviceToken)
+    }
+    
+    //Firebase Messaging Token
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String) {
+        print("Fcm token form firebase",fcmToken)
+    }
+    
+    //For foreground Notification Method
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        
+        completionHandler(.alert)
+    }
+    
+    fileprivate func attemptRegisterNotification(App:UIApplication){
+        
+        Messaging.messaging().delegate = self
+        UNUserNotificationCenter.current().delegate = self
+
+        let options = UNAuthorizationOptions(arrayLiteral: .alert,.badge,.sound)
+        UNUserNotificationCenter.current().requestAuthorization(options: options) { (granted, error) in
+            if let err = error {
+                print(err.localizedDescription)
+                return
+            }
+            
+            if granted {
+                print("User granted..")
+            }else {
+                
+                print("User denied")
+            }
+        }
+        
+        App.registerForRemoteNotifications()
+        
+    }
+    
+    
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        guard let userInfo = response.notification.request.content.userInfo as? [String:Any] else {return}
+        guard let followerID = userInfo["followerId"] as? String else {return}
+        
+        if let mainTabarContoller = UIApplication.shared.keyWindow?.rootViewController as? MainTabController {
+            mainTabarContoller.selectedIndex = 0
+            mainTabarContoller.presentedViewController?.dismiss(animated: true, completion: nil)
+            let userProfileContoller = UserProfileController(collectionViewLayout:UICollectionViewFlowLayout())
+                userProfileContoller.userID = followerID
+            if let nv = mainTabarContoller.viewControllers?.first as? UINavigationController {
+                nv.pushViewController(userProfileContoller, animated: true)
+            }
+        }
+    
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
